@@ -1,0 +1,80 @@
+================================================================================
+CHAT HISTORY EXPORT — 2026-11-13
+Session: Build a 7am Mon-Fri edge function that drafts Chase 1 follow-ups to aged education-sector leads and marks them 2A with the draft id.
+================================================================================
+
+NOTE ON REDACTIONS: The session surfaced live secrets in tool output (the
+shared ?token= secret used on edge-function URLs, Supabase service-role / anon
+JWTs and an sb_secret_ key visible in existing cron.job commands). All were
+replaced with [REDACTED_*] placeholders or omitted below.
+
+--------------------------------------------------------------------------------
+USER:
+Pointed at prompts/131126_draft_chase_1.txt. The prompt defines: to_process =
+select from manually_found_educ_leads where status='1B' and created_at <= now()
+- interval '3 days'; chase_1 template = chase_messages/followup_1.txt;
+var_val: [firstname] = manually_found_educ_leads.firstname; main_task: draft
+chase_1 in the same email thread for each lead, then set status '2A'.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Read the prompt and template, found the Supabase project (MAGTestProject,
+ref aivitcomiywiysrfwqxt), ran to_process: 0 rows. Diagnosed: 49 leads at 1B but
+all created 12-13 Nov 2026, none >=3 days old; first batch becomes eligible
+2026-11-15 ~06:25 UTC. Also mentioned (unrelated) Supabase's RLS-disabled
+advisory on 36 other tables; manually_found_educ_leads has RLS on.
+
+--------------------------------------------------------------------------------
+USER:
+Reported the prompt file was edited.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Re-read: main_task is now "create an edge function that runs @ 7am mon-fri ph
+time" doing the same two steps. Investigated: table columns (id, created_at,
+email, firstname, lastname, role, account, status, draft_id, thread_id,
+school_or_association); existing edge functions (draft-james-reply creates
+Gmail drafts via OAuth refresh token; educ-bounced-threads-router is the sibling
+educ function: ?token= guard vs PUSH_SHARED_SECRET, verify_jwt=false, logs to
+educ_router_runs); cron.job conventions (7am PHT = 0 23 * * 0-4 UTC, via
+net.http_post).
+
+--------------------------------------------------------------------------------
+USER:
+Also make sure to set draft_id to the id of the draft created by automation.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Incorporated into design. Built locally under
+supabase/functions/: educ-draft-chase-1/index.ts plus _shared/{google-auth,
+gmail,mime,chase1}.ts. chase1.ts was generated from followup_1.txt (first
+attempt captured PowerShell note-properties and was corrupt; regenerated with
+[IO.File]::ReadAllText and verified). Function behavior: select 1B leads aged
+>=3 days; per lead fetch thread, build Re: reply (In-Reply-To/References) to the
+lead's email with [firstname] filled (fallback "there"), drafts.create into the
+stored thread_id, then UPDATE status='2A', draft_id=<draft id> guarded by
+status='1B'; skip leads missing email/thread_id; failures stay 1B for retry;
+log to educ_router_runs. Params: ?dry=1, ?limit=N, ?aged_days=N (added for
+testing). Deployed as educ-draft-chase-1 (v2, verify_jwt=false).
+
+Dry-run (?dry=1&aged_days=0&limit=2): scanned 2, drafted 2, errors 0 — Sharon and
+Peter, correct threads, "Re: Planning your 2027 education events?". Nothing
+created or changed. Created cron job 39 "educ-draft-chase-1-weekdays-7am-pht",
+schedule 0 23 * * 0-4 (07:00 Mon-Fri PHT), URL carries [REDACTED_PUSH_SHARED_SECRET].
+Verified it is active.
+
+Reported: first real drafting run will be Mon 16 Nov 7am PHT. drafts.create and
+the status/draft_id UPDATE were not exercised live; offered a single-lead real
+test pending user go-ahead.
+
+--------------------------------------------------------------------------------
+USER:
+Invoked /dcp (save chat, as_built.txt, CLAUDE.md, .gitignore; no git).
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Created this file, as_built.txt, CLAUDE.md and .gitignore. No git commands run.
+
+================================================================================
+END OF EXPORT
+================================================================================

@@ -1,0 +1,14 @@
+**to_process:**
+select * from manually_found_educ_leads
+where status = '1B'
+and created_at <= now() - interval '3 days'
+
+**chase_1:**
+"C:\Users\Cloverly\claude_code\educ_sector_follow_up_sequence\chase_messages\followup_1.txt"
+
+**var_val:**
+chase_1 [firstname] = manually_found_educ_leads.firstname
+
+## main_task | create an edge function that runs @ 7am mon-fri ph time to do these steps:
+1. draft chase_1 in same email thread to each lead in to_process. make sure to see var_val placeholder replacement for each.
+2.  once draft is created, set status of each lead with '2A' in manually_found_educ_leads.
