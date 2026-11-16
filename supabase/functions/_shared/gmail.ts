@@ -50,6 +50,15 @@ export const createDraft = (token: string, raw: string, threadId: string) =>
     body: JSON.stringify({ message: { raw, threadId } }),
   });
 
+// Send an existing draft by its draft id. Gmail sends it in whatever thread the
+// draft was created in (so threading is preserved) and then deletes the draft.
+// Returns the sent message resource ({ id, threadId, labelIds, ... }).
+export const sendDraft = (token: string, draftId: string) =>
+  gfetch(token, `/drafts/send`, {
+    method: "POST",
+    body: JSON.stringify({ id: draftId }),
+  });
+
 // deno-lint-ignore no-explicit-any
 export function header(msg: any, name: string): string {
   const h = (msg.payload?.headers ?? []).find(

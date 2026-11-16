@@ -1,0 +1,16 @@
+**query_drafts:**
+select * from manually_found_educ_leads
+where status = '2A'
+and created_at <= now() - interval '3 days'
+
+**steps_list:**
+1. send drafted message (make sure it is in the same thread)
+2. set status to '2B'
+3. update followup_1_date_sent
+
+## main_task: update educ-draft-chase-1
+1. rename edge function to educ-draft-followup-1
+2. exec query_drafts and run steps_list on each returned rows. add this as additional steps once original steps of edge function is done.
+
+## critical_notes:
+1. do not run the edge function once the updates are in place. just let me know once done.

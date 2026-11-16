@@ -1,0 +1,98 @@
+================================================================================
+CHAT HISTORY EXPORT — 2026-11-16
+Session: Confirmed nothing consumed 2A leads, then renamed educ-draft-chase-1 to educ-draft-followup-1 with an appended send phase (2A -> 2B), cut the cron over, and live-tested on one lead.
+================================================================================
+
+NOTE ON REDACTIONS: Tool output in this session exposed live secrets (the shared
+?token= secret on edge-function/cron URLs, Supabase service-role / anon JWTs and
+an sb_secret_ key in existing cron.job commands). None are reproduced below; they
+are described by placeholder only ([REDACTED_PUSH_SHARED_SECRET],
+[REDACTED_SUPABASE_KEYS]).
+
+--------------------------------------------------------------------------------
+USER:
+(/q) Asked: for the status 2A rows in manually_found_educ_leads, is there an
+edge function that creates the drafts on a schedule?
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Read-only investigation. Answer: no. 2A is only ever written to by
+educ-draft-chase-1 (cron job 39, 0 23 * * 0-4 = 7am Mon-Fri PHT), which reads only
+status='1B' leads aged >=3 days, drafts Chase 1 in-thread and flips them to 2A
+(guarded by status='1B'). No other function or cron reads 2A. Other educ pieces:
+referred-leads-chase-1 (cron 40) and educ-bounced-threads-router (cron 38, 10A).
+No chase-2 function exists in the repo or deployed.
+
+--------------------------------------------------------------------------------
+USER:
+Pointed at prompts/161126_update_folloup1_edge_function_to_send_drafts.txt.
+Spec: query_drafts = status '2A' and created_at <= now() - 3 days; steps: send
+the drafted message in the same thread, set status '2B', update
+followup_1_date_sent. Task: rename educ-draft-chase-1 to educ-draft-followup-1
+and run query_drafts + steps_list on each row as additional steps after the
+original steps. Critical: do not run the function once updated; just report.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Read the existing function and shared helpers; confirmed table columns
+(draft_id, followup_1/2/3_date_sent exist). Flagged that the literal spec would
+send a draft in the same run it was created (same created_at window, no
+became-2A timestamp). Asked how to handle it; user answered: only send the drafts
+created by Phase A whose status Phase A set to '2A' in that run.
+
+Implemented: added sendDraft (drafts.send) to _shared/gmail.ts; created
+supabase/functions/educ-draft-followup-1/index.ts (Phase A unchanged; Phase B
+sends this run's drafts, sets status 2B guarded by status='2A', stamps
+followup_1_date_sent; run log router "draft-followup-1"); removed the old
+educ-draft-chase-1 directory locally; deployed educ-draft-followup-1 (v1,
+verify_jwt=false). Did not run it. Flagged: cron 39 still pointed at the old
+name, and this reverses the drafts-only convention.
+
+--------------------------------------------------------------------------------
+USER:
+Go live now.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Unscheduled cron job 39 and created job 42
+"educ-draft-followup-1-weekdays-7am-pht" (0 23 * * 0-4) pointing at the new
+function with [REDACTED_PUSH_SHARED_SECRET]; verified it is the only educ-draft
+cron and is active. The Supabase MCP has no delete-function tool, so the old
+educ-draft-chase-1 function was left orphaned for the user to delete.
+
+--------------------------------------------------------------------------------
+USER:
+Update CLAUDE.md; I'll delete the function myself.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Updated CLAUDE.md: status flow now 1B -> 2A -> 2B, noted
+educ-draft-followup-1 as the one function that drafts AND sends, dry-run line
+mentions no sends.
+
+--------------------------------------------------------------------------------
+USER:
+Test the new function on just 1 lead.
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Found 10 eligible 1B leads, all real prospects (no internal test address).
+Asked dry vs live; user chose live send to lead 70 (Nicole, Geelong Grammar
+School). Invoked ?limit=1: scanned 1, drafted 1, sent 1, errors 0. Verified lead
+70 = status 2B, draft_id r8494522885482911975, followup_1_date_sent 2026-11-16
+05:26:16 UTC; educ_router_runs id 9 shows the 2A then 2B lifecycle. 9 eligible 1B
+leads remain for the next 7am PHT cron run.
+
+--------------------------------------------------------------------------------
+USER:
+Invoked /dcp (save chat, as_built.txt, CLAUDE.md, .gitignore; no git).
+
+--------------------------------------------------------------------------------
+ASSISTANT:
+Created this file and updated as_built.txt. CLAUDE.md already reflected this
+session's changes; .gitignore already covers sensitive patterns. No git commands
+run.
+
+================================================================================
+END OF EXPORT
+================================================================================

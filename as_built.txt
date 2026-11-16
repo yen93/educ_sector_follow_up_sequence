@@ -1,46 +1,57 @@
 ================================================================================
 AS-BUILT — educ_sector_follow_up_sequence
-Last updated: 2026-11-13
+Last updated: 2026-11-16
 ================================================================================
 
 SCRIPTS
-- supabase/functions/educ-draft-chase-1/index.ts — edge function: drafts Chase 1
-  as a threaded Gmail reply for each manually_found_educ_leads row with
-  status='1B' and created_at older than 3 days, then sets status='2A' and
-  draft_id=<new Gmail draft id>. Drafts only, never sends. Params: ?token
-  (required), ?dry=1, ?limit=N, ?aged_days=N.
+- supabase/functions/educ-draft-followup-1/index.ts — edge function (renamed from
+  educ-draft-chase-1). Phase A: drafts Follow-up 1 as a threaded Gmail reply for
+  each manually_found_educ_leads row with status='1B' and created_at older than
+  3 days, then sets status='2A' and draft_id=<new Gmail draft id>. Phase B: sends
+  ONLY the drafts Phase A created this run (drafts.send, stays in-thread), sets
+  status='2B' (guarded by status='2A') and stamps followup_1_date_sent=now().
+  SENDS real email as james@. Params: ?token (required), ?dry=1 (no drafts, no
+  sends, no status changes), ?limit=N, ?aged_days=N.
   Requires: edge-function secrets PUSH_SHARED_SECRET, GMAIL_OAUTH_CLIENT_ID,
   GMAIL_OAUTH_CLIENT_SECRET, GMAIL_OAUTH_REFRESH_TOKEN (set in Supabase, not in repo).
 - supabase/functions/_shared/google-auth.ts — refresh-token -> access token.
-- supabase/functions/_shared/gmail.ts — profile, getThread, createDraft helpers.
+- supabase/functions/_shared/gmail.ts — profile, getThread, createDraft, sendDraft helpers.
 - supabase/functions/_shared/mime.ts — builds base64url RFC822 HTML reply.
 - supabase/functions/_shared/chase1.ts — GENERATED from
   chase_messages/followup_1.txt (HTML + signature); fillChase1() replaces [firstname].
 
 PROMPTS / CONTENT
-- prompts/131126_draft_chase_1.txt — task spec (to_process query, template, var_val).
-- chase_messages/followup_1.txt — Chase 1 email HTML (source of truth).
+- prompts/131126_draft_chase_1.txt — original task spec (drafting).
+- prompts/161126_update_folloup1_edge_function_to_send_drafts.txt — spec for the
+  rename + send phase.
+- chase_messages/followup_1.txt — Follow-up 1 email HTML (source of truth).
 
 EXTERNAL INTEGRATIONS
 - Supabase project MAGTestProject (ref aivitcomiywiysrfwqxt, ap-northeast-1) —
   edge functions + Postgres; accessed via Supabase MCP.
-- Gmail API (james@ mailbox) — OAuth refresh token stored as Supabase secret.
+- Gmail API (james@ mailbox) — OAuth refresh token stored as Supabase secret;
+  scope covers drafts and send.
 
 DATA STORES
-- public.manually_found_educ_leads — leads (status 1B -> 2A; 10A = bounced;
-  columns incl. email, firstname, thread_id, draft_id).
-- public.educ_router_runs — run log shared by educ functions (draft-chase-1 logs
-  here; dry runs labelled "draft-chase-1 (dry)").
+- public.manually_found_educ_leads — leads (status 1B -> 2A -> 2B; 10A = bounced;
+  columns incl. email, firstname, thread_id, draft_id, followup_1/2/3_date_sent).
+- public.educ_router_runs — run log shared by educ functions (this one logs as
+  "draft-followup-1"; dry runs "draft-followup-1 (dry)"; no created_at column).
 
 AUTOMATIONS / ROUTINES
-- educ-draft-chase-1-weekdays-7am-pht (pg_cron jobid 39, 0 23 * * 0-4 UTC =
-  07:00 Mon-Fri PHT) — invokes educ-draft-chase-1 via net.http_post. Token is in
-  the cron command (stored in the database, not in repo).
+- educ-draft-followup-1-weekdays-7am-pht (pg_cron jobid 42, 0 23 * * 0-4 UTC =
+  07:00 Mon-Fri PHT) — invokes educ-draft-followup-1 via net.http_post. Token is
+  in the cron command (stored in the database, not in repo). Replaced jobid 39.
 - educ-bounced-threads-router-daily (jobid 38, pre-existing) — moves bounced
   threads and sets status 10A.
+- referred-leads-chase-1-weekdays-7am-pht (jobid 40, pre-existing) — separate
+  Chase 1 for referred leads.
 
 STATUS NOTES
-- Deployed v2 on 2026-11-13. Dry-run verified on 2 leads. drafts.create and the
-  status/draft_id UPDATE not yet exercised live. First eligible leads age in
-  2026-11-15; first real run Mon 2026-11-16.
+- educ-draft-followup-1 deployed v1 on 2026-11-16 and live-tested on lead 70
+  (drafted, sent, 2B). Cron job 42 live; remaining 9 eligible 1B leads are
+  processed at the next 7am PHT weekday run.
+- Old function educ-draft-chase-1 still deployed but orphaned (no cron points to
+  it); to be deleted manually by the user.
+- No function consumes 2B yet (no follow-up 2 built).
 ================================================================================
